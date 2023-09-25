@@ -1,9 +1,12 @@
 import streamlit as st
 from youtube_transcript_api import YouTubeTranscriptApi
 import openai
+import json
 
 # Open AI setting
-openai.api_key = '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'
+with open('config.json', 'r') as file:
+    config = json.load(file)
+    openai.api_key = config['OPENAI_API_KEY']
 
 # Function to chunk text
 def chunk_text(text, max_length):

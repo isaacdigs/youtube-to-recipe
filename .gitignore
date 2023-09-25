@@ -1,0 +1,20 @@
+# .gitignore
+
+# Ignore configuration file to ensure API keys and other sensitive data aren't committed
+config.json
+
+# Ignore Python-specific files
+__pycache__/
+*.pyc
+*.pyo
+
+# Other common files to ignore (depending on your setup)
+*.log
+*.env               # if you also use python-dotenv or similar
+*.egg-info/
+dist/
+build/
+*.egg
+*.swp               # for vim users
+*.swo               # for vim users
+.DS_Store           # for macOS users
