@@ -11,7 +11,7 @@ with open('config.json', 'r') as file:
     openai.api_key = config['OPENAI_API_KEY']
 
 def chunk_text(text, max_length):
-    chunks = []
+    chunks = [] 
     while text:
         if len(text) > max_length:
             split_index = text[:max_length].rfind(' ')
@@ -72,3 +72,9 @@ async def convert_to_recipe(video_id: str):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+# Test video IDs 
+# ZMdYi7wG6JA
+# qWbHSOplcvY
+# 4qYZuxc-8KY
+# BHP60TVc4VE
