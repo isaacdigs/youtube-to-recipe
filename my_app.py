@@ -1,14 +1,15 @@
-import streamlit as st
+from fastapi import FastAPI, HTTPException
 from youtube_transcript_api import YouTubeTranscriptApi
 import openai
 import json
 
-# Open AI setting
+app = FastAPI()
+
+# Load OpenAI API key from config.json
 with open('config.json', 'r') as file:
     config = json.load(file)
     openai.api_key = config['OPENAI_API_KEY']
 
-# Function to chunk text
 def chunk_text(text, max_length):
     chunks = []
     while text:
@@ -21,12 +22,9 @@ def chunk_text(text, max_length):
             break
     return chunks
 
-# function to convert to recipe JSON
 def text_to_json(text): 
     max_token_length = 2000
     chunks = chunk_text(text, max_token_length)
-
-    # prompt structure
     system_message = """
     You are a helpful assistant. Given the following YouTube transcript, convert it into a structured recipe in the following JSON format:
 
@@ -45,8 +43,6 @@ def text_to_json(text):
 
     Transcript: 
     """
-
-    # aggregate results from all chunks
     results = []
     for chunk in chunks:
         response = openai.ChatCompletion.create(
@@ -57,47 +53,22 @@ def text_to_json(text):
             ]
         )
         results.append(response.choices[0].message['content'].strip())
-
-    # Again, for simplicity, let's join all results.
     return " ".join(results)
 
-
-# Streamlit app title
-st.title("YouTube Recipe Extractor")
-
-# Input field for the YouTube video ID
-video_id = st.text_input("Enter YouTube Video ID:")
-
-# JSON_converter function
-def convert_to_json(text):
-    st.subheader("Recipe (JSON):")
-    recipe_json = text_to_json("".join(text))
-    st.write(recipe_json)
-
-# Check if a video ID is provided
-if video_id:
+@app.post("/convert_to_recipe/")
+async def convert_to_recipe(video_id: str):
     try:
-        # Extract transcript for the given video ID (not URL)
         transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['ko', 'en'])
-
-        # Display the transcript
-        st.subheader("Transcript:")
         transcript_text = []
         for entry in transcript:
-            # Convert time to desired format (seconds) for youtube timestamp url
-            # format: https://youtu.be/(video_id)?t=(time in seconds)
             converted_time = int(entry['start'])
             transcript_text.append(f"({converted_time}) : {entry['text']}")
-
-        st.write("".join(transcript_text))
-        if st.button("Convert to JSON recipe"):
-            convert_to_json(transcript_text)
+        recipe_json = text_to_json("".join(transcript_text))
+        return {"recipe": recipe_json}
 
     except Exception as e:
-        st.error(f"An error occurred while fetching the transcript: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"An error occurred: {str(e)}")
 
-# Test video IDs 
-# ZMdYi7wG6JA
-# qWbHSOplcvY
-# 4qYZuxc-8KY
-# BHP60TVc4VE
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
