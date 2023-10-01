@@ -1,9 +1,13 @@
-import streamlit as st
+from flask import Flask, request, jsonify
 from youtube_transcript_api import YouTubeTranscriptApi
 import openai
 import json
+from flask_cors import CORS
 
-# Open AI setting
+app = Flask(__name__)
+CORS(app)
+
+# Load OpenAI API key from config
 with open('config.json', 'r') as file:
     config = json.load(file)
     openai.api_key = config['OPENAI_API_KEY']
@@ -62,39 +66,32 @@ def text_to_json(text):
     return " ".join(results)
 
 
-# Streamlit app title
-st.title("YouTube Recipe Extractor")
-
-# Input field for the YouTube video ID
-video_id = st.text_input("Enter YouTube Video ID:")
-
-# JSON_converter function
-def convert_to_json(text):
-    st.subheader("Recipe (JSON):")
-    recipe_json = text_to_json("".join(text))
-    st.write(recipe_json)
-
-# Check if a video ID is provided
-if video_id:
+@app.route('/transcript', methods=['POST'])
+def get_transcript():
+    video_id = request.json.get('videoId')
+    
     try:
-        # Extract transcript for the given video ID (not URL)
         transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['ko', 'en'])
-
-        # Display the transcript
-        st.subheader("Transcript:")
-        transcript_text = []
-        for entry in transcript:
-            # Convert time to desired format (seconds) for youtube timestamp url
-            # format: https://youtu.be/(video_id)?t=(time in seconds)
-            converted_time = int(entry['start'])
-            transcript_text.append(f"({converted_time}) : {entry['text']}")
-
-        st.write("".join(transcript_text))
-        if st.button("Convert to JSON recipe"):
-            convert_to_json(transcript_text)
-
+        transcript_text = [{'time': int(entry['start']), 'text': entry['text']} for entry in transcript]
+        return jsonify(transcript_text)
     except Exception as e:
-        st.error(f"An error occurred while fetching the transcript: {str(e)}")
+        return jsonify({"error": str(e)}), 400
+
+@app.route('/recipe', methods=['POST'])
+def get_recipe():
+    data = request.json
+    transcript = data.get('transcript', [])
+    if not isinstance(transcript, list):
+        return jsonify({"error": "Invalid data. 'transcript' should be a list of strings."}), 400
+    
+    transcript_text = "".join(transcript)
+    recipe_json = text_to_json(transcript_text)
+    return jsonify({"recipe": recipe_json})
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
+
 
 # Test video IDs 
 # ZMdYi7wG6JA
