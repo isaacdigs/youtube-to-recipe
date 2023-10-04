@@ -1,73 +1,108 @@
+# ----- General imports -----
+
 from fastapi import FastAPI, HTTPException
+from starlette.responses import JSONResponse
 from youtube_transcript_api import YouTubeTranscriptApi
 import openai
 import json
 
+# ----- imports for debugging -----
+import traceback
+import logging
+
+# ----- Configuration -----
+with open("config.json", "r") as file:
+    config = json.load(file)
+    openai.api_key = config["OPENAI_API_KEY"]
+
+logging.basicConfig(level=logging.ERROR)
 app = FastAPI()
 
-# Load OpenAI API key from config.json
-with open('config.json', 'r') as file:
-    config = json.load(file)
-    openai.api_key = config['OPENAI_API_KEY']
+# Prompts
+INGREDIENT_PROMPT = """
+You are a helpful assistant. Given the following YouTube transcript, extract and list down all the ingredients in the following JSON format:
 
+{
+  "ingredients": {
+    "ingredient1":"amount1",
+    "ingredient2":"amount2",
+    ...
+  }
+}
+
+Transcript: 
+"""
+INSTRUCTIONS_PROMPT = """
+You are a helpful assistant. Given the following YouTube transcript, convert it into a structured set of cooking instructions in the following JSON format:
+
+{
+  "steps": {
+    "timestamp1":"step 1 of the instructions",
+    "timestamp2":"step 2 of the instructions",
+    ...
+  }
+}
+
+Transcript: 
+"""
+
+# ----- Utility Functions -----
 def chunk_text(text, max_length):
-    chunks = [] 
-    while text:
-        if len(text) > max_length:
-            split_index = text[:max_length].rfind(' ')
-            chunks.append(text[:split_index])
-            text = text[split_index:]
+    words = text.split()
+    chunks = []
+    chunk = ""
+    for word in words:
+        if len(chunk) + len(word) <= max_length:
+            chunk += word + " "
         else:
-            chunks.append(text)
-            break
+            chunks.append(chunk.strip())
+            chunk = word + " "
+    if chunk:
+        chunks.append(chunk.strip())
     return chunks
 
-def text_to_json(text): 
+def extract_from_transcript(text, prompt):
     max_token_length = 2000
-    chunks = chunk_text(text, max_token_length)
-    system_message = """
-    You are a helpful assistant. Given the following YouTube transcript, convert it into a structured recipe in the following JSON format:
-
-    {
-      "author": "Name of the author (if mentioned)",
-      "ingredients": {
-        "ingredient":"amount",
-      }
-      "steps": {
-        "timestamp":"step 1 of the instructions",
-        "timestamp:"step 2 of the instructions",
-      }
-    }
-    
-    Make sure you leave out unnecessary comments and exclamations, and maintain the transcript's language.
-
-    Transcript: 
-    """
+    chunks = chunk_text(text, max_token_length - len(prompt) - 50)  # Buffer space
     results = []
     for chunk in chunks:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": chunk}
-            ]
-        )
-        results.append(response.choices[0].message['content'].strip())
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": chunk}
+                ]
+            )
+            results.append(response.choices[0].message['content'].strip())
+        except:
+            raise HTTPException(status_code=500, detail="OpenAI processing error")
     return " ".join(results)
 
-@app.post("/convert_to_recipe/")
-async def convert_to_recipe(video_id: str):
+# ----- API Endpoints -----
+@app.post("/get_ingredients/")
+async def get_ingredients(video_id: str):
     try:
-        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['ko', 'en'])
-        transcript_text = []
-        for entry in transcript:
-            converted_time = int(entry['start'])
-            transcript_text.append(f"({converted_time}) : {entry['text']}")
-        recipe_json = text_to_json("".join(transcript_text))
-        return {"recipe": recipe_json}
-
+        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+        transcript_text = " ".join([entry['text'] for entry in transcript])
+        ingredients_json = extract_from_transcript(transcript_text, INGREDIENT_PROMPT)
+        return JSONResponse(content=json.loads(ingredients_json))
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"An error occurred: {str(e)}")
+        traceback_str = traceback.format_exc()
+        logging.error(traceback_str)
+        raise HTTPException(status_code=500, detail=f"Error processing ingredients: {traceback_str}")
+
+@app.post("/get_instructions/")
+async def get_instructions(video_id: str):
+    try:
+        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+        transcript_text = " ".join([entry['text'] for entry in transcript])
+        instructions_json = extract_from_transcript(transcript_text, INSTRUCTIONS_PROMPT)
+        return JSONResponse(content=json.loads(instructions_json))
+    except Exception as e:
+        traceback_str = traceback.format_exc()
+        logging.error(traceback_str)
+        raise HTTPException(status_code=500, detail=f"Error processing instructions: {traceback_str}")
 
 if __name__ == "__main__":
     import uvicorn
