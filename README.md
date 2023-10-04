@@ -1,75 +1,70 @@
-# YouTube Recipe Extractor
+# YouTube Cooking Assistant API
 
-This application lets you input a YouTube video ID, fetches its transcript, and then converts the transcript into a structured recipe format in JSON. The primary usage is to extract cooking recipes from cooking-related videos, especially those in Korean or English.
+This FastAPI application extracts ingredients and cooking instructions from YouTube video transcripts using OpenAI's GPT-3.5-turbo model.
 
-## Features
+## Setup
 
-- Extracts transcript from any public YouTube video.
-- Converts the transcript into a structured recipe in JSON format.
-- Maintains the transcript's original language during conversion.
+1. **Dependencies**:
+   Ensure you have the required Python packages installed:
 
-## Setup & Installation
-
-### Prerequisites
-- Python 3.x
-- OpenAI API Key (GPT-3.5-turbo)
-
-### Steps:
-1. Clone the repository:
    ```bash
-   git clone https://github.com/isaacdigs/youtube-to-recipe.git
+   pip install fastapi[all] youtube_transcript_api openai uvicorn
    ```
 
-2. Navigate to the cloned directory:
-   ```bash
-   cd youtube-to-recipe
-   ```
+2. **Configuration**:
+   Create a `config.json` in the root directory with the following structure:
 
-3. Install the required packages:
-   ```bash
-   pip install streamlit youtube_transcript_api openai
-   ```
-
-4. Create a `config.json` file in the root directory with the following structure:
    ```json
    {
-       "OPENAI_API_KEY": "YOUR_OPENAI_API_KEY"
+       "OPENAI_API_KEY": "Your-OpenAI-API-Key"
    }
    ```
-   Replace `YOUR_OPENAI_API_KEY` with your actual OpenAI API key.
 
-5. Run the Streamlit app:
-   ```bash
-   streamlit run main.py
-   ```
+   Replace `Your-OpenAI-API-Key` with your actual OpenAI API key.
 
-6. Open the displayed URL in your browser, and you're good to go!
+## How It Works
 
-## Usage
+1. **Initialization**:
+   - Import necessary modules and packages.
+   - Load the OpenAI API key from `config.json`.
+   - Set up logging to handle errors.
+   - Initialize the FastAPI application.
 
-1. Enter a valid YouTube Video ID into the input field.
-   
-   Example video IDs: 
-   - ZMdYi7wG6JA
-   - qWbHSOplcvY
-   - 4qYZuxc-8KY
-   - BHP60TVc4VE
+2. **Prompt Definitions**:
+   - `INGREDIENT_PROMPT`: Extracts ingredients from the YouTube transcript.
+   - `INSTRUCTIONS_PROMPT`: Converts the transcript into structured cooking instructions.
 
-2. View the extracted transcript displayed below the input field.
+3. **Utility Functions**:
+   - `chunk_text`: Breaks long texts into smaller chunks that are manageable for GPT-3.5-turbo.
+   - `extract_from_transcript`: Processes the YouTube transcript based on a given prompt and returns the model's response.
 
-3. Click the "Convert to JSON recipe" button to see the recipe structure.
+4. **API Endpoints**:
+   - `POST /get_ingredients/`: Accepts a YouTube video ID, fetches the transcript, and returns the extracted ingredients in a structured JSON format.
+   - `POST /get_instructions/`: Accepts a YouTube video ID, fetches the transcript, and returns the structured cooking instructions in JSON format.
 
-## Limitations
+## Running the API
 
-- The application primarily supports Korean and English video transcripts. Other languages might not work as expected.
-- The quality of the extracted recipe depends on the clarity and structure of the original video's transcript.
+To run the API locally:
 
-## Contributing
+```bash
+uvicorn my_app:app --host 0.0.0.0 --port 8000
+```
 
-If you find any bugs or have feature requests, feel free to create issues or submit pull requests.
+Replace `my_app` with the name of your python script if it's different.
 
-## License
+## Testing
 
-[MIT](LICENSE)
+The application has been tested with a few YouTube video IDs, such as:
+- `ZMdYi7wG6JA`
+- `qWbHSOplcvY`
+- `4qYZuxc-8KY`
+- `BHP60TVc4VE`
 
----
+## Error Handling
+
+Error handling mechanisms are in place to manage potential issues with the OpenAI API or with fetching YouTube transcripts. Detailed error logs help in identifying and troubleshooting issues.
+
+## Future Enhancements
+
+1. Incorporate a caching mechanism to store results for previously processed videos.
+2. Enhance the NLP model training for better accuracy in ingredients and instruction extraction.
