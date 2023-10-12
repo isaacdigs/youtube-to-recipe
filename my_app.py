@@ -1,10 +1,11 @@
 # ----- General imports -----
-
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from youtube_transcript_api import YouTubeTranscriptApi
 import openai
 import json
+from pydantic import BaseModel
 
 # ----- imports for debugging -----
 import traceback
@@ -17,6 +18,10 @@ with open("config.json", "r") as file:
 
 logging.basicConfig(level=logging.ERROR)
 app = FastAPI()
+
+# Define the Pydantic Model for video_id
+class VideoRequest(BaseModel):
+    video_id: str
 
 # Prompts
 INGREDIENT_PROMPT = """
@@ -79,10 +84,20 @@ def extract_from_transcript(text, prompt):
             raise HTTPException(status_code=500, detail="OpenAI processing error")
     return " ".join(results)
 
+# ----- Handling CORS with the front-end -----
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # You might want to specify your front-end domain here instead of '*'
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # ----- API Endpoints -----
 @app.post("/get_ingredients/")
-async def get_ingredients(video_id: str):
+async def get_ingredients(video_request: VideoRequest):
     try:
+        video_id = video_request.video_id
         transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
         transcript_text = " ".join([entry['text'] for entry in transcript])
         ingredients_json = extract_from_transcript(transcript_text, INGREDIENT_PROMPT)
@@ -93,8 +108,9 @@ async def get_ingredients(video_id: str):
         raise HTTPException(status_code=500, detail=f"Error processing ingredients: {traceback_str}")
 
 @app.post("/get_instructions/")
-async def get_instructions(video_id: str):
+async def get_instructions(video_request: VideoRequest):
     try:
+        video_id = video_request.video_id
         transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
         transcript_text = " ".join([entry['text'] for entry in transcript])
         instructions_json = extract_from_transcript(transcript_text, INSTRUCTIONS_PROMPT)
